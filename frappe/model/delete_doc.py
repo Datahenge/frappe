@@ -120,16 +120,22 @@ def delete_doc(
 
 			if not for_reload:
 				update_flags(doc, flags, ignore_permissions)
-				check_permission_and_not_submitted(doc)
+				# check_permission_and_not_submitted(doc)
 
 				if not ignore_on_trash:
+					doc.flags.in_delete = True  # DH - Moving this flag *before* 'on_trash', so it can be detected by code called via 'on_trash'
 					doc.run_method("on_trash")
-					doc.flags.in_delete = True
 
-					# Datahenge: Makes no sense that 'on_change' is called for Deletions prior to actual SQL
-					# deletion.  But -also- called post 'on_update()' for INSERT and UPDATE.
-					# Just nonsensical naming.
-					# Also, results of a quick search: there are barely any 'on_change()' functions in all of ERPNext?
+					if doc.flags.get("delete_permanently"):
+						delete_permanently = True  # DH - Provide a means of skipping 'Deleted Documents', for certain DocTypes.
+
+					check_permission_and_not_submitted(doc)  # DH - Moving this below on_trash, so I have a way to bypass it
+
+					# Datahenge: Makes no sense that 'on_change':
+					#     1. Is called for during deletion *prior* to SQL operations.
+					#     2. But for insert/update, it is call *after* SQL operations (and after 'on_update' too)
+					# Also this is just really poor naming.
+					# Also results of a quick search: there are barely any 'on_change()' use cases in all of ERPNext?
 					# Let's try to put an end to this madness.
 					if not ignore_on_change:
 						doc.run_method('on_change')
@@ -275,7 +281,8 @@ def check_permission_and_not_submitted(doc):
 		)
 
 	# check if submitted
-	if doc.meta.is_submittable and doc.docstatus.is_submitted():
+	# DH: Add a flag so we can bypass this.
+	if (not doc.flags.ignore_submitted) and doc.meta.is_submittable and doc.docstatus.is_submitted():
 		frappe.msgprint(
 			_("{0} {1}: Submitted Record cannot be deleted. You must {2} Cancel {3} it first.").format(
 				_(doc.doctype),
@@ -338,6 +345,10 @@ def check_if_doc_is_linked(doc, method="Delete"):
 			linked_parent_doctype = item.parenttype if item_parent else link_dt
 
 			if linked_parent_doctype in ignored_doctypes:
+				continue
+
+			# Datahenge:  Also doing it my way, because I have to:
+			if link_dt in doc.flags.get('dh_ignore_linked_doctypes', []):
 				continue
 
 			if method != "Delete" and (method != "Cancel" or not DocStatus(item.docstatus).is_submitted()):

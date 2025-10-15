@@ -19,9 +19,8 @@ from frappe.utils import CallbackManager
 @click.option("--db-password", help="Database password")
 @click.option(
 	"--db-type",
-	default="mariadb",
 	type=click.Choice(["mariadb", "postgres"]),
-	help='Optional "postgres" or "mariadb". Default is "mariadb"',
+	help='Optional "postgres" or "mariadb".  No defaults, be explicit',
 )
 @click.option("--db-host", help="Database Host")
 @click.option("--db-port", type=int, help="Database Port")
@@ -481,7 +480,7 @@ def install_app(context, apps, force=False):
 					print(f"App {app} is Incompatible with Site {site}{err_msg}")
 					exit_code = 1
 				except Exception as err:
-					err_msg = f": {err!s}\n{frappe.get_traceback(with_context=True)}"
+					err_msg = f": {err!s}\n{frappe.utils.get_traceback(with_context=True)}"
 					print(f"An error occurred while installing {app}{err_msg}")
 					exit_code = 1
 
@@ -870,7 +869,7 @@ def backup(
 				rollback_callback.run()
 				rollback_callback = None
 			if verbose:
-				print(frappe.get_traceback(with_context=True))
+				print(frappe.utils.get_traceback(with_context=True))
 			exit_code = 1
 			continue
 		if frappe.get_system_settings("encrypt_backup") and frappe.get_site_config().encryption_key:

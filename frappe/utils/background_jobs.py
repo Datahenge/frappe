@@ -269,7 +269,7 @@ def execute_job(site, method, event, job_name, kwargs, user=None, is_async=True,
 		frappe.db.rollback()
 		frappe.log_error(title=method_name)
 		frappe.db.commit()
-		print(frappe.get_traceback())
+		print(frappe.utils.get_traceback())
 		raise
 
 	else:
@@ -308,6 +308,20 @@ def start_worker(
 		if queue:
 			queue = [q.strip() for q in queue.split(",")]
 		queues = get_queue_list(queue, build_queue_name=True)
+
+	# DW - BEGIN: Need to preload more information into RQ workers to improve performance.
+	try:
+		frappe.init(frappe.get_conf().default_site)
+		frappe.connect()
+		print("Loading FTP caches into Redis workers ...")
+		from ftp.ftp_invent.redis.internals import get_redis_inventory_conn
+		from ftp.ftp_invent.redis import MW_CACHE  # creates a connection to MW Redis cache  pylint: disable=unused-import 
+		get_redis_inventory_conn()  # this creates a connection to Availability Redis cache.
+		frappe.db.commit(no_new_transaction=True)  # Does this make the "idle in transaction" go away?
+
+	except Exception as ex:
+		print(f"ERROR in start_worker() : {ex}")
+	# DW - END
 
 	if os.environ.get("CI"):
 		setup_loghandlers("ERROR")
